@@ -17,6 +17,13 @@
 						"type": "DatasetReference"
 					},
 					"name": "WWImportersDBSource"
+				},
+				{
+					"dataset": {
+						"referenceName": "WWImportersStockItems",
+						"type": "DatasetReference"
+					},
+					"name": "WWImportersColorSourceDBSource"
 				}
 			],
 			"sinks": [
@@ -53,6 +60,9 @@
 				},
 				{
 					"name": "SelectWWImportersColumn"
+				},
+				{
+					"name": "WWImportersColorLookUp"
 				}
 			],
 			"scriptLines": [
@@ -119,6 +129,15 @@
 				"     limit: 100,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     format: 'table') ~> WWImportersDBSource",
+				"source(output(",
+				"          ColorId as integer,",
+				"          Color as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT  ColorId, ColorName as Color\\nFROM    Warehouse.Colors',",
+				"     format: 'query') ~> WWImportersColorSourceDBSource",
 				"WWImportersDBSource sort(asc(StockItemName, true),",
 				"     caseInsensitive: true) ~> SortByName",
 				"AdvWorksDBSource filter(isNull(SellEndDate)) ~> FilterDiscontinued",
@@ -143,8 +162,9 @@
 				"     ),",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true) ~> SelectADVWorksColumns",
-				"DerivedFinalCostAndProductType select(mapColumn(",
+				"WWImportersColorLookUp select(mapColumn(",
 				"          StockItemName,",
+				"          Color,",
 				"          Cost,",
 				"          RetailPrice = RecommendedRetailPrice,",
 				"          Size,",
@@ -152,6 +172,10 @@
 				"     ),",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true) ~> SelectWWImportersColumn",
+				"DerivedFinalCostAndProductType, WWImportersColorSourceDBSource lookup(WWImportersDBSource@ColorID == WWImportersColorSourceDBSource@ColorId,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> WWImportersColorLookUp",
 				"DerivedProductType sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
