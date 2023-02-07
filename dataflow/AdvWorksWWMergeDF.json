@@ -47,6 +47,12 @@
 				},
 				{
 					"name": "DerivedProductType"
+				},
+				{
+					"name": "SelectADVWorksColumns"
+				},
+				{
+					"name": "SelectWWImportersColumn"
 				}
 			],
 			"scriptLines": [
@@ -123,11 +129,29 @@
 				"    'Product'\r",
 				"    ),",
 				"          each(match(type == 'string'), $$ = trim($$))) ~> DerivedFinalCostAndProductType",
-				"FilterDiscontinued derive(ItemType = case(\r",
+				"SelectADVWorksColumns derive(ItemType = case(\r",
 				"    in(['S','M','L','XL'], Size),\r",
 				"    'Clothing', \r",
 				"    'Product'\r",
 				"    )) ~> DerivedProductType",
+				"FilterDiscontinued select(mapColumn(",
+				"          Name,",
+				"          Color,",
+				"          Cost = StandardCost,",
+				"          RetailPrice = ListPrice,",
+				"          Size",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectADVWorksColumns",
+				"DerivedFinalCostAndProductType select(mapColumn(",
+				"          StockItemName,",
+				"          Cost,",
+				"          RetailPrice = RecommendedRetailPrice,",
+				"          Size,",
+				"          ItemType",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectWWImportersColumn",
 				"DerivedProductType sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
@@ -140,7 +164,7 @@
 				"     skipDuplicateMapOutputs: true,",
 				"     saveOrder: 1,",
 				"     errorHandlingOption: 'stopOnFirstError') ~> MergeDBProductSink",
-				"DerivedFinalCostAndProductType sink(allowSchemaDrift: true,",
+				"SelectWWImportersColumn sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
 				"     insertable:true,",
