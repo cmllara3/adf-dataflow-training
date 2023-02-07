@@ -63,6 +63,15 @@
 				},
 				{
 					"name": "WWImportersColorLookUp"
+				},
+				{
+					"name": "AdvWorksSplitClothesFromProducts"
+				},
+				{
+					"name": "WWImportersSplitClothesFromProducts"
+				},
+				{
+					"name": "CheckRepetedClothes"
 				}
 			],
 			"scriptLines": [
@@ -147,7 +156,7 @@
 				"    'Clothing', \r",
 				"    'Product'\r",
 				"    ),",
-				"          each(match(type == 'string'), $$ = trim($$))) ~> DerivedFinalCostAndProductType",
+				"          each(match(type=='string'), $$ = trim($$))) ~> DerivedFinalCostAndProductType",
 				"SelectADVWorksColumns derive(ItemType = case(\r",
 				"    in(['S','M','L','XL'], Size),\r",
 				"    'Clothing', \r",
@@ -163,7 +172,7 @@
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true) ~> SelectADVWorksColumns",
 				"WWImportersColorLookUp select(mapColumn(",
-				"          StockItemName,",
+				"          Name = StockItemName,",
 				"          Color,",
 				"          Cost,",
 				"          RetailPrice = RecommendedRetailPrice,",
@@ -176,7 +185,14 @@
 				"     multiple: false,",
 				"     pickup: 'any',",
 				"     broadcast: 'auto')~> WWImportersColorLookUp",
-				"DerivedProductType sink(allowSchemaDrift: true,",
+				"DerivedProductType split(ItemType == 'Product',",
+				"     disjoint: false) ~> AdvWorksSplitClothesFromProducts@(AdvWorksProducts, AdvWorksClothes)",
+				"SelectWWImportersColumn split(ItemType == 'Product',",
+				"     disjoint: false) ~> WWImportersSplitClothesFromProducts@(WWImportersProducts, WWImportersClothes)",
+				"AdvWorksSplitClothesFromProducts@AdvWorksClothes, WWImportersSplitClothesFromProducts@WWImportersClothes exists(AdvWorksSplitClothesFromProducts@AdvWorksClothes@Name == WWImportersSplitClothesFromProducts@WWImportersClothes@Name,",
+				"     negate:true,",
+				"     broadcast: 'auto')~> CheckRepetedClothes",
+				"AdvWorksSplitClothesFromProducts@AdvWorksProducts sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
 				"     insertable:true,",
@@ -188,7 +204,7 @@
 				"     skipDuplicateMapOutputs: true,",
 				"     saveOrder: 1,",
 				"     errorHandlingOption: 'stopOnFirstError') ~> MergeDBProductSink",
-				"SelectWWImportersColumn sink(allowSchemaDrift: true,",
+				"WWImportersSplitClothesFromProducts@WWImportersProducts sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
 				"     insertable:true,",
