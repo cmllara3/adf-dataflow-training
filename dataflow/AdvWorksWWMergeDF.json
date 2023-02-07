@@ -101,6 +101,12 @@
 				},
 				{
 					"name": "RankByAveragePrice"
+				},
+				{
+					"name": "AddPKClothes"
+				},
+				{
+					"name": "AddPKProducts"
 				}
 			],
 			"scriptLines": [
@@ -242,7 +248,13 @@
 				"AggregateByProductModelName rank(desc(AverageCost, true),",
 				"     output(Rank as long),",
 				"     dense: true) ~> RankByAveragePrice",
-				"UnionAllProducts sink(allowSchemaDrift: true,",
+				"UnionAllClothes keyGenerate(output(ClothingId as long),",
+				"     startAt: 1L,",
+				"     stepValue: 1L) ~> AddPKClothes",
+				"UnionAllProducts keyGenerate(output(ProductID as long),",
+				"     startAt: 1L,",
+				"     stepValue: 1L) ~> AddPKProducts",
+				"AddPKProducts sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
 				"     insertable:true,",
@@ -254,7 +266,7 @@
 				"     skipDuplicateMapOutputs: true,",
 				"     saveOrder: 1,",
 				"     errorHandlingOption: 'stopOnFirstError') ~> MergeDBProductSink",
-				"UnionAllClothes sink(allowSchemaDrift: true,",
+				"AddPKClothes sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
 				"     insertable:true,",
