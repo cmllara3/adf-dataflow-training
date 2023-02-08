@@ -31,6 +31,13 @@
 						"type": "DatasetReference"
 					},
 					"name": "AdvWorksCheckModel"
+				},
+				{
+					"dataset": {
+						"referenceName": "WWImportersStockItems",
+						"type": "DatasetReference"
+					},
+					"name": "WWImportersGetInvoiceEvents"
 				}
 			],
 			"sinks": [
@@ -110,6 +117,37 @@
 				},
 				{
 					"name": "AllowOnlyProductUpsert"
+				},
+				{
+					"name": "DeriveProfitability"
+				},
+				{
+					"name": "WindowClothes"
+				},
+				{
+					"name": "ParseJSONColumn"
+				},
+				{
+					"name": "FlattenEvents"
+				},
+				{
+					"name": "ParseJSONEvents"
+				},
+				{
+					"name": "PivotEventDates"
+				},
+				{
+					"name": "DerivedColumnSubColumns"
+				},
+				{
+					"name": "MapDriftedEvent",
+					"description": "Creates an explicit mapping for each drifted column"
+				},
+				{
+					"name": "UnpivotEventDate"
+				},
+				{
+					"name": "SelectEventDelivery"
 				}
 			],
 			"scriptLines": [
@@ -194,6 +232,15 @@
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     query: 'SELECT  ProductModelID, Name as ProductModelName\\nFROM    Production.ProductModel',",
 				"     format: 'query') ~> AdvWorksCheckModel",
+				"source(output(",
+				"          InvoiceID as integer,",
+				"          ReturnedDeliveryData as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT  InvoiceID, ReturnedDeliveryData\\nFROM    Sales.Invoices',",
+				"     format: 'query') ~> WWImportersGetInvoiceEvents",
 				"WWImportersDBSource sort(asc(StockItemName, true),",
 				"     caseInsensitive: true) ~> SortByName",
 				"AdvWorksDBSource filter(isNull(SellEndDate)) ~> FilterDiscontinued",
@@ -251,13 +298,69 @@
 				"AggregateByProductModelName rank(desc(AverageCost, true),",
 				"     output(Rank as long),",
 				"     dense: true) ~> RankByAveragePrice",
-				"UnionAllClothes keyGenerate(output(ClothingId as long),",
+				"WindowClothes keyGenerate(output(ClothingId as long),",
 				"     startAt: 1L,",
 				"     stepValue: 1L) ~> AddPKClothes",
 				"UnionAllProducts keyGenerate(output(ProductID as long),",
 				"     startAt: 1L,",
 				"     stepValue: 1L) ~> AddPKProducts",
 				"AddPKProducts alterRow(upsertIf(true())) ~> AllowOnlyProductUpsert",
+				"UnionAllClothes derive(Profitability = iif(Cost == 0, toDecimal(0), RetailPrice/Cost)) ~> DeriveProfitability",
+				"DeriveProfitability window(over(Size),",
+				"     desc(Profitability, true),",
+				"     Rank = denseRank()) ~> WindowClothes",
+				"WWImportersGetInvoiceEvents parse(JsonData = ReturnedDeliveryData ? (ReceivedBy as string,",
+				"          DeliveredWhen as date,",
+				"          Events as string[]),",
+				"     format: 'json',",
+				"     documentForm: 'singleDocument') ~> ParseJSONColumn",
+				"ParseJSONColumn foldDown(unroll(JsonData.Events),",
+				"     mapColumn(",
+				"          InvoiceID,",
+				"          ReceivedBy = JsonData.ReceivedBy,",
+				"          DeliveredWhen = JsonData.DeliveredWhen,",
+				"          Events = JsonData.Events",
+				"     ),",
+				"     skipDuplicateMapInputs: false,",
+				"     skipDuplicateMapOutputs: false) ~> FlattenEvents",
+				"FlattenEvents parse(EventDetails = Events ? (Event as string,",
+				"          EventTime as date,",
+				"          ConNote as string),",
+				"     format: 'json',",
+				"     documentForm: 'singleDocument') ~> ParseJSONEvents",
+				"DerivedColumnSubColumns pivot(groupBy(InvoiceID,",
+				"          ReceivedBy,",
+				"          DeliveredWhen,",
+				"          ConNoteCode),",
+				"     pivotBy(EventName),",
+				"     {} = first(EventTime),",
+				"     columnNaming: 'Item_$N$V_Date',",
+				"     lateral: true) ~> PivotEventDates",
+				"ParseJSONEvents derive(EventName = EventDetails.Event,",
+				"          EventTime = EventDetails.EventTime,",
+				"          ConNoteCode = EventDetails.ConNote) ~> DerivedColumnSubColumns",
+				"PivotEventDates derive(DeliveryAttempt = toDate(byName('Item_DeliveryAttempt_Date')),",
+				"          ReadyForCollection = toDate(byName('Item_Ready for collection_Date'))) ~> MapDriftedEvent",
+				"MapDriftedEvent unpivot(output(",
+				"          DeliveryEvent as string,",
+				"          DeliveredWhen as date,",
+				"          DeliveryAttempt as date,",
+				"          ReadyForCollection as date",
+				"     ),",
+				"     ungroupBy(InvoiceID,",
+				"          ReceivedBy,",
+				"          ConNoteCode),",
+				"     lateral: true,",
+				"     ignoreNullPivots: false) ~> UnpivotEventDate",
+				"UnpivotEventDate select(mapColumn(",
+				"          InvoiceID,",
+				"          ReceivedBy,",
+				"          ConNoteCode,",
+				"          DeliveryEvent,",
+				"          DeliveredWhen",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SelectEventDelivery",
 				"AllowOnlyProductUpsert sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     deletable:false,",
