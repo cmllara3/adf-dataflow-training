@@ -1,0 +1,16 @@
+{
+	"name": "MergedDBProducts",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "MergedDB",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "Products"
+		}
+	}
+}
