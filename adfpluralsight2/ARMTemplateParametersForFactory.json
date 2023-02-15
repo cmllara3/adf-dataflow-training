@@ -1,0 +1,21 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "adfpluralsight2"
+		},
+		"AdvWorkBlobLS_connectionString": {
+			"value": ""
+		},
+		"AdventureWorksDB_connectionString": {
+			"value": ""
+		},
+		"MergedDB_connectionString": {
+			"value": ""
+		},
+		"WWImporters_connectionString": {
+			"value": ""
+		}
+	}
+}
